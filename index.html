@@ -2,33 +2,22 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>文青轉盤 App</title>
     
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#8C9A9E">
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="文青轉盤">
+
     <link class="app-icon" rel="apple-touch-icon" href="app-icon.png">
     <link rel="icon" type="image/png" sizes="192x192" href="app-icon.png">
     
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&display=block" rel="stylesheet" />
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&display=swap" rel="stylesheet">
 
     <style>
-        /* ==================== 解決手機版 Icon 變成英文文字的問題 ==================== */
-        .material-symbols-outlined {
-            font-family: 'Material Symbols Outlined' !important;
-            font-feature-settings: 'liga' 1 !important;
-            -webkit-font-feature-settings: 'liga' 1 !important;
-            font-weight: normal;
-            font-style: normal;
-            display: inline-block;
-            line-height: 1;
-            text-transform: none;
-            letter-spacing: normal;
-            word-wrap: normal;
-            white-space: nowrap;
-            direction: ltr;
-            -webkit-font-smoothing: antialiased;
-        }
-
         /* ==================== 基礎設定與配色 (文青風 UI) ==================== */
         :root {
             --bg-color: #F5F4F0;      /* 燕麥米白 */
@@ -48,8 +37,8 @@
 
         body, html {
             width: 100vw;
-            height: 100dvh; /* 動態視窗高度，防止手機瀏覽器工具列遮擋 */
-            overflow: hidden; /* 禁止全局滾動條，確保元件不超出畫面 */
+            height: 100dvh; /* 動態視窗高度，完美貼合手機螢幕 */
+            overflow: hidden; /* 禁止全局滾動條 */
             font-family: 'Noto Sans TC', 'PingFang TC', '微軟正黑體', sans-serif;
             background-color: var(--bg-color);
             color: var(--text-main);
@@ -68,6 +57,8 @@
             background-color: #fff;
             border-bottom: 1px solid #EAE8E3;
             box-shadow: 0 2px 10px rgba(0,0,0,0.02);
+            /* 預留 iPhone 頂部瀏海/動態島的安全區域 */
+            padding-top: env(safe-area-inset-top); 
         }
         
         #currentTitle {
@@ -94,7 +85,8 @@
             display: flex;
             justify-content: space-around;
             align-items: center;
-            padding-bottom: env(safe-area-inset-bottom);
+            /* 適配全螢幕下 iPhone 底部的安全線條 */
+            padding-bottom: calc(env(safe-area-inset-bottom) + 5px);
         }
 
         .nav-btn {
@@ -630,10 +622,9 @@
             const file = event.target.files[0];
             if (!file) return;
 
-            // 💡 核心修復：在前端 JavaScript 進行防錯檢查，確保用戶上傳的是正確的 .json 格式檔案
             if (!file.name.toLowerCase().endsWith('.json')) {
                 alert("❌ 請選擇副檔名為 .json 的備份檔案喔！");
-                event.target.value = ''; // 清空上傳，防止錯誤掛載
+                event.target.value = '';
                 return;
             }
 
