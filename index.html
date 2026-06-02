@@ -10,7 +10,7 @@
     
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="文青轉盤">
+    <meta name="apple-mobile-web-app-title" content="轉盤">
 
     <link class="app-icon" rel="apple-touch-icon" href="app-icon.png">
     <link rel="icon" type="image/png" sizes="192x192" href="app-icon.png">
@@ -59,12 +59,22 @@
             box-shadow: 0 2px 10px rgba(0,0,0,0.02);
             padding-top: env(safe-area-inset-top); 
         }
-        
-        #currentTitle {
+
+        /* 💡 新增：頂部客製化極簡下拉選單樣式 */
+        .header-select {
             font-size: 1.1rem;
             font-weight: 700;
             color: var(--primary-color);
             letter-spacing: 1px;
+            border: none;
+            background: transparent;
+            outline: none;
+            font-family: 'Noto Sans TC', sans-serif;
+            text-align-last: center; /* 讓文字在下拉選單中居中 */
+            text-align: center;
+            cursor: pointer;
+            padding: 2px 10px;
+            border-radius: 4px;
         }
 
         main {
@@ -232,7 +242,7 @@
 
         .item-row {
             display: flex;
-            flex-direction: column; /* 改為垂直排版以塞入公休小按鈕 */
+            flex-direction: column;
             align-items: stretch;
             padding: 12px 4px;
             border-bottom: 1px solid #EAE8E3;
@@ -246,7 +256,6 @@
             margin-bottom: 8px;
         }
 
-        /* 💡 新增：公休星期選取按鈕群 */
         .rest-days-selector {
             display: flex;
             gap: 6px;
@@ -284,8 +293,8 @@
 <body>
 
     <header>
-        <span style="font-size: 0.75rem; color: #999; margin-bottom: 2px; font-weight: 500;">當前主題</span>
-        <div id="currentTitle">載入中...</div>
+        <span style="font-size: 0.75rem; color: #999; margin-bottom: 2px; font-weight: 500;">當前主題 ▾</span>
+        <select id="headerProjectSelect" class="header-select" onchange="switchProject(this.value)"></select>
     </header>
 
     <main>
@@ -391,11 +400,11 @@
         let appData = JSON.parse(localStorage.getItem('multiWheelAppData')) || defaultAppData;
         let historyData = JSON.parse(localStorage.getItem('wheelHistory')) || [];
         
-        // 💡 核心優化：資料結構自動升級防護機制 (將字串陣列升級為帶有公休設定的物件陣列)
+        // 資料結構自動升級防護機制
         for (let listName in appData.lists) {
             appData.lists[listName] = appData.lists[listName].map(item => {
                 if (typeof item === 'string') {
-                    return { name: item, restDays: [] }; // 預設沒有公休
+                    return { name: item, restDays: [] };
                 }
                 return item;
             });
@@ -409,19 +418,16 @@
         let currentAngle = 0, spinVelocity = 0, isSpinning = false;
         const centerX = canvas.width / 2, centerY = canvas.height / 2, radius = centerX - 10;
 
-        // 💡 核心新增：取得「過濾掉今天公休店家」後的有效名單
         function getFilteredItems() {
             const rawItems = appData.lists[appData.current] || [];
-            // JavaScript 的 getDay(): 0=日, 1=一, 2=二, 3=三, 4=四, 5=五, 6=六
             const currentDay = new Date().getDay(); 
             return rawItems.filter(item => !item.restDays.includes(currentDay));
         }
 
         function drawWheel() {
-            const items = getFilteredItems(); // 讀取過濾公休後的名單
+            const items = getFilteredItems();
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            // 如果全部公休，畫布中央提示
             if (items.length === 0) {
                 ctx.save();
                 ctx.fillStyle = varColor('--primary-color', '#8C9A9E');
@@ -474,7 +480,6 @@
             ctx.stroke();
         }
 
-        // 輔助獲取 CSS 變數顏色
         function varColor(varName, fallback) {
             return getComputedStyle(document.documentElement).getPropertyValue(varName).trim() || fallback;
         }
@@ -532,19 +537,23 @@
         }
 
         // --- 主題管理邏輯 ---
+        // 💡 修改：同步更新頂部選單的值
         function updateHeaderTitle() {
-            document.getElementById('currentTitle').innerText = appData.current;
+            const headerSelect = document.getElementById('headerProjectSelect');
+            if (headerSelect) headerSelect.value = appData.current;
         }
 
         function saveToStorage() {
             localStorage.setItem('multiWheelAppData', JSON.stringify(appData));
         }
 
+        // 💡 修改：切換專案時，自動重新計算並同步兩邊的選單狀態
         function switchProject(projectName) {
             if(!appData.lists[projectName]) return;
             appData.current = projectName;
             saveToStorage();
             updateHeaderTitle();
+            populateProjectSelect(); 
             drawWheel();
             renderEditList();
         }
@@ -585,11 +594,16 @@
             }
         }
 
+        // 💡 修改：同時渲染彈出視窗內、以及頂部 Header 內的下拉選單選項
         function populateProjectSelect() {
             const select = document.getElementById('projectSelect');
-            select.innerHTML = Object.keys(appData.lists).map(key => 
+            const headerSelect = document.getElementById('headerProjectSelect');
+            const optionsHtml = Object.keys(appData.lists).map(key => 
                 `<option value="${key}" ${key === appData.current ? 'selected' : ''}>${key}</option>`
             ).join('');
+            
+            if (select) select.innerHTML = optionsHtml;
+            if (headerSelect) headerSelect.innerHTML = optionsHtml;
         }
 
         // --- 模態框通用控制 ---
@@ -610,13 +624,11 @@
             }
         }
 
-        // 💡 核心修改：渲染出精緻的手機版公休星期切換圓鈕
         function renderEditList() {
             const list = document.getElementById('itemList');
             const items = appData.lists[appData.current] || [];
             
             list.innerHTML = items.map((item, index) => {
-                // 產生一到日的圓形標籤
                 const weekDays = [
                     { label: "一", val: 1 }, { label: "二", val: 2 }, { label: "三", val: 3 },
                     { label: "四", val: 4 }, { label: "五", val: 5 }, { label: "六", val: 6 }, { label: "日", val: 0 }
@@ -642,20 +654,18 @@
             }).join('');
         }
 
-        // 💡 新增：切換公休狀態的點擊函式
         window.toggleRestDay = function(itemIndex, dayValue) {
             const item = appData.lists[appData.current][itemIndex];
             const foundIndex = item.restDays.indexOf(dayValue);
             
             if (foundIndex > -1) {
-                item.restDays.splice(foundIndex, 1); // 點擊已啟用的公休 -> 取消公休
+                item.restDays.splice(foundIndex, 1);
             } else {
-                item.restDays.push(dayValue); // 點擊未啟用的公休 -> 加入公休
+                item.restDays.push(dayValue);
             }
-            renderEditList(); // 重新渲染列表畫面
+            renderEditList();
         };
 
-        // 綁定抽籤按鈕
         document.querySelectorAll('.nav-btn')[0].removeAttribute('onclick');
         document.querySelectorAll('.nav-btn')[0].addEventListener('click', startSpin);
 
@@ -729,7 +739,6 @@
                 try {
                     const imported = JSON.parse(e.target.result);
                     if(imported.current && imported.lists) {
-                        // 備份還原時同樣加入格式升級機制，確保留存相容性
                         for (let listName in imported.lists) {
                             imported.lists[listName] = imported.lists[listName].map(item => {
                                 if (typeof item === 'string') return { name: item, restDays: [] };
@@ -738,6 +747,7 @@
                         }
                         appData = imported;
                         saveToStorage();
+                        populateProjectSelect(); // 還原時同步刷新選單選項
                         updateHeaderTitle();
                         drawWheel();
                         closeModal('backupModal');
@@ -754,6 +764,7 @@
         }
 
         // 初始化
+        populateProjectSelect(); // 💡 核心新增：一載入就將主題資料注入頂部下拉選單
         updateHeaderTitle();
         drawWheel();
         canvas.addEventListener('click', startSpin);
