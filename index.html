@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>文青轉盤 App</title>
+    <title>轉盤</title>
     
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#8C9A9E">
@@ -37,7 +37,7 @@
 
         body, html {
             width: 100vw;
-            height: 100dvh; /* 動態視窗高度，完美貼合手機螢幕 */
+            height: 100dvh; /* 動態視窗高度 */
             overflow: hidden; /* 禁止全局滾動條 */
             font-family: 'Noto Sans TC', 'PingFang TC', '微軟正黑體', sans-serif;
             background-color: var(--bg-color);
@@ -57,7 +57,6 @@
             background-color: #fff;
             border-bottom: 1px solid #EAE8E3;
             box-shadow: 0 2px 10px rgba(0,0,0,0.02);
-            /* 預留 iPhone 頂部瀏海/動態島的安全區域 */
             padding-top: env(safe-area-inset-top); 
         }
         
@@ -85,7 +84,6 @@
             display: flex;
             justify-content: space-around;
             align-items: center;
-            /* 適配全螢幕下 iPhone 底部的安全線條 */
             padding-bottom: calc(env(safe-area-inset-bottom) + 5px);
         }
 
@@ -107,14 +105,8 @@
             gap: 5px;
         }
 
-        .nav-btn:hover, .nav-btn:active {
-            color: var(--accent-color);
-        }
-
-        .nav-btn svg {
-            stroke: currentColor;
-            transition: stroke 0.2s;
-        }
+        .nav-btn:hover, .nav-btn:active { color: var(--accent-color); }
+        .nav-btn svg { stroke: currentColor; transition: stroke 0.2s; }
 
         /* ==================== 轉盤與指針 ==================== */
         .wheel-wrapper {
@@ -184,12 +176,7 @@
             align-items: center;
         }
         
-        .close-icon { 
-            cursor: pointer; 
-            color: var(--text-main);
-            display: flex;
-            align-items: center;
-        }
+        .close-icon { cursor: pointer; color: var(--text-main); display: flex; align-items: center; }
 
         .project-selector-group {
             background: #fff;
@@ -215,8 +202,7 @@
         .add-item-group input {
             flex-grow: 1; padding: 10px; border: 1px solid var(--accent-color);
             border-radius: 8px; font-size: 1rem; outline: none; background: #fff;
-            font-family: 'Noto Sans TC', sans-serif;
-            font-weight: 500;
+            font-family: 'Noto Sans TC', sans-serif; font-weight: 500;
         }
         .btn-primary {
             background-color: var(--primary-color); color: #FFF;
@@ -233,10 +219,10 @@
             background-color: transparent; color: var(--danger-color);
             border: 1px dashed var(--danger-color); padding: 6px 12px; border-radius: 6px;
             cursor: pointer; font-size: 0.8rem; margin-top: 8px; width: 100%;
-            font-family: 'Noto Sans TC', sans-serif;
-            font-weight: 700;
+            font-family: 'Noto Sans TC', sans-serif; font-weight: 700;
         }
 
+        /* 項目編輯列表 */
         .item-list {
             flex-grow: 1;
             overflow-y: auto;
@@ -245,9 +231,46 @@
         }
 
         .item-row {
-            display: flex; justify-content: space-between; align-items: center;
-            padding: 10px 0; border-bottom: 1px solid #EAE8E3;
+            display: flex;
+            flex-direction: column; /* 改為垂直排版以塞入公休小按鈕 */
+            align-items: stretch;
+            padding: 12px 4px;
+            border-bottom: 1px solid #EAE8E3;
+        }
+
+        .item-main-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             font-weight: 500;
+            margin-bottom: 8px;
+        }
+
+        /* 💡 新增：公休星期選取按鈕群 */
+        .rest-days-selector {
+            display: flex;
+            gap: 6px;
+        }
+        
+        .day-tag {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background-color: #EAE8E3;
+            color: #888;
+            font-size: 0.7rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            user-select: none;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+        
+        .day-tag.active {
+            background-color: var(--danger-color);
+            color: #FFF;
         }
 
         .icon-btn { background: none; border: none; cursor: pointer; display: flex; align-items: center; }
@@ -368,6 +391,16 @@
         let appData = JSON.parse(localStorage.getItem('multiWheelAppData')) || defaultAppData;
         let historyData = JSON.parse(localStorage.getItem('wheelHistory')) || [];
         
+        // 💡 核心優化：資料結構自動升級防護機制 (將字串陣列升級為帶有公休設定的物件陣列)
+        for (let listName in appData.lists) {
+            appData.lists[listName] = appData.lists[listName].map(item => {
+                if (typeof item === 'string') {
+                    return { name: item, restDays: [] }; // 預設沒有公休
+                }
+                return item;
+            });
+        }
+
         const colors = ['#FF597B', '#FF8E53', '#FFD166', '#06D6A0', '#00BBF9', '#9B5DE5'];
 
         // --- Canvas 轉盤控制 ---
@@ -376,10 +409,28 @@
         let currentAngle = 0, spinVelocity = 0, isSpinning = false;
         const centerX = canvas.width / 2, centerY = canvas.height / 2, radius = centerX - 10;
 
+        // 💡 核心新增：取得「過濾掉今天公休店家」後的有效名單
+        function getFilteredItems() {
+            const rawItems = appData.lists[appData.current] || [];
+            // JavaScript 的 getDay(): 0=日, 1=一, 2=二, 3=三, 4=四, 5=五, 6=六
+            const currentDay = new Date().getDay(); 
+            return rawItems.filter(item => !item.restDays.includes(currentDay));
+        }
+
         function drawWheel() {
-            const items = appData.lists[appData.current] || [];
+            const items = getFilteredItems(); // 讀取過濾公休後的名單
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            if (items.length === 0) return;
+            
+            // 如果全部公休，畫布中央提示
+            if (items.length === 0) {
+                ctx.save();
+                ctx.fillStyle = varColor('--primary-color', '#8C9A9E');
+                ctx.font = "bold 36px 'Noto Sans TC', sans-serif";
+                ctx.textAlign = "center";
+                ctx.fillText("今天全部店家都公休喔！", centerX, centerY);
+                ctx.restore();
+                return;
+            }
             
             const sliceAngle = (2 * Math.PI) / items.length;
 
@@ -410,7 +461,7 @@
                 ctx.shadowOffsetX = 1;
                 ctx.shadowOffsetY = 1;
 
-                ctx.fillText(items[i], radius - 50, 0); 
+                ctx.fillText(items[i].name, radius - 50, 0); 
                 ctx.restore();
             }
 
@@ -421,6 +472,11 @@
             ctx.lineWidth = 2;
             ctx.strokeStyle = '#EAE8E3';
             ctx.stroke();
+        }
+
+        // 輔助獲取 CSS 變數顏色
+        function varColor(varName, fallback) {
+            return getComputedStyle(document.documentElement).getPropertyValue(varName).trim() || fallback;
         }
 
         // --- 旋轉物理動畫 ---
@@ -439,15 +495,23 @@
         }
 
         function startSpin() {
-            const items = appData.lists[appData.current] || [];
-            if (isSpinning || items.length < 2) return;
+            const items = getFilteredItems();
+            if (isSpinning) return;
+            if (items.length === 0) {
+                alert("今天所有店家都公休，沒有東西可以轉喔！");
+                return;
+            }
+            if (items.length < 2) {
+                alert("今天沒公休的店家剩不到 2 個，無法抽籤喔！請先去主題清單調整或新增項目。");
+                return;
+            }
             isSpinning = true;
             spinVelocity = Math.random() * 0.3 + 0.4; 
             animate();
         }
 
         function calculateWinner() {
-            const items = appData.lists[appData.current];
+            const items = getFilteredItems();
             const sliceAngle = (2 * Math.PI) / items.length;
             const degrees = (currentAngle % (2 * Math.PI)) * (180 / Math.PI);
             const pointerAngle = 270 - degrees;
@@ -457,12 +521,12 @@
             const winner = items[winnerIndex];
             
             const timeString = new Date().toLocaleTimeString('zh-TW', {hour: '2-digit', minute:'2-digit'});
-            historyData.unshift({ theme: appData.current, time: timeString, result: winner });
+            historyData.unshift({ theme: appData.current, time: timeString, result: winner.name });
             if(historyData.length > 50) historyData.pop();
             localStorage.setItem('wheelHistory', JSON.stringify(historyData));
 
             setTimeout(() => { 
-                document.getElementById('resultText').innerHTML = `抽中了：<br><span style="color:#FF597B; font-size:1.6rem; font-weight:900;">${winner}</span>`;
+                document.getElementById('resultText').innerHTML = `抽中了：<br><span style="color:#FF597B; font-size:1.6rem; font-weight:900;">${winner.name}</span>`;
                 openModal('resultModal');
             }, 200);
         }
@@ -495,7 +559,7 @@
                 return;
             }
 
-            appData.lists[cleanName] = ["選項 A", "選項 B"];
+            appData.lists[cleanName] = [{ name: "選項 A", restDays: [] }, { name: "選項 B", restDays: [] }];
             appData.current = cleanName;
             saveToStorage();
             updateHeaderTitle();
@@ -546,18 +610,50 @@
             }
         }
 
+        // 💡 核心修改：渲染出精緻的手機版公休星期切換圓鈕
         function renderEditList() {
             const list = document.getElementById('itemList');
             const items = appData.lists[appData.current] || [];
-            list.innerHTML = items.map((item, index) => `
-                <div class="item-row">
-                    <span>${item}</span>
-                    <button class="icon-btn delete" onclick="deleteItem(${index})">
-                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-                    </button>
-                </div>
-            `).join('');
+            
+            list.innerHTML = items.map((item, index) => {
+                // 產生一到日的圓形標籤
+                const weekDays = [
+                    { label: "一", val: 1 }, { label: "二", val: 2 }, { label: "三", val: 3 },
+                    { label: "四", val: 4 }, { label: "五", val: 5 }, { label: "六", val: 6 }, { label: "日", val: 0 }
+                ];
+                
+                const tagsHtml = weekDays.map(d => `
+                    <div class="day-tag ${item.restDays.includes(d.val) ? 'active' : ''}" 
+                         onclick="toggleRestDay(${index}, ${d.val})">${d.label}</div>
+                `).join('');
+
+                return `
+                    <div class="item-row">
+                        <div class="item-main-info">
+                            <span>${item.name}</span>
+                            <button class="icon-btn delete" onclick="deleteItem(${index})">
+                                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                            </button>
+                        </div>
+                        <div style="font-size: 0.75rem; color:#A0A0A0; margin-bottom:4px; font-weight:700;">設定公休日：</div>
+                        <div class="rest-days-selector">${tagsHtml}</div>
+                    </div>
+                `;
+            }).join('');
         }
+
+        // 💡 新增：切換公休狀態的點擊函式
+        window.toggleRestDay = function(itemIndex, dayValue) {
+            const item = appData.lists[appData.current][itemIndex];
+            const foundIndex = item.restDays.indexOf(dayValue);
+            
+            if (foundIndex > -1) {
+                item.restDays.splice(foundIndex, 1); // 點擊已啟用的公休 -> 取消公休
+            } else {
+                item.restDays.push(dayValue); // 點擊未啟用的公休 -> 加入公休
+            }
+            renderEditList(); // 重新渲染列表畫面
+        };
 
         // 綁定抽籤按鈕
         document.querySelectorAll('.nav-btn')[0].removeAttribute('onclick');
@@ -567,7 +663,7 @@
             const input = document.getElementById('newItemInput');
             const val = input.value.trim();
             if (val) {
-                appData.lists[appData.current].push(val);
+                appData.lists[appData.current].push({ name: val, restDays: [] });
                 input.value = '';
                 renderEditList();
             }
@@ -590,7 +686,7 @@
                 return;
             }
             list.innerHTML = historyData.map(h => `
-                <div class="item-row">
+                <div class="item-row" style="flex-direction:row; justify-content:space-between; align-items:center;">
                     <div>
                         <div style="font-size:0.75rem; color:#999;">${h.theme} (${h.time})</div>
                         <div style="font-weight: 700; color: var(--primary-color); margin-top:2px;">${h.result}</div>
@@ -633,6 +729,13 @@
                 try {
                     const imported = JSON.parse(e.target.result);
                     if(imported.current && imported.lists) {
+                        // 備份還原時同樣加入格式升級機制，確保留存相容性
+                        for (let listName in imported.lists) {
+                            imported.lists[listName] = imported.lists[listName].map(item => {
+                                if (typeof item === 'string') return { name: item, restDays: [] };
+                                return item;
+                            });
+                        }
                         appData = imported;
                         saveToStorage();
                         updateHeaderTitle();
