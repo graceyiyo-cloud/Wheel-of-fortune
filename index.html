@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>文青轉盤 App</title>
+    
+    <link class="app-icon" rel="apple-touch-icon" href="app-icon.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="app-icon.png">
+    
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&display=block" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&display=swap" rel="stylesheet">
+
+    <style>
+        /* ==================== 解決手機版 Icon 變成英文文字的問題 ==================== */
+        .material-symbols-outlined {
+            font-family: 'Material Symbols Outlined' !important;
+            font-feature-settings: 'liga' 1 !important;
+            -webkit-font-feature-settings: 'liga' 1 !important;
+            font-weight: normal;
+            font-style: normal;
+            display: inline-block;
+            line-height: 1;
+            text-transform: none;
+            letter-spacing: normal;
+            word-wrap: normal;
+            white-space: nowrap;
+            direction: ltr;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ==================== 基礎設定與配色 (文青風 UI) ==================== */
+        :root {
+            --bg-color: #F5F4F0;      /* 燕麥米白 */
+            --primary-color: #8C9A9E; /* 莫蘭迪藍灰 */
+            --accent-color: #C2B4A6;  /* 拿鐵大地色 */
+            --text-main: #4A4A4A;     /* 柔和深灰 */
+            --nav-bg: #FFFFFF;        /* 底部導覽列背景 */
+            --danger-color: #D98C8C;  /* 柔和磚紅 */
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body, html {
+            width: 100vw;
+            height: 100dvh; /* 動態視窗高度，防止手機瀏覽器工具列遮擋 */
+            overflow: hidden; /* 禁止全局滾動條，確保元件不超出畫面 */
+            font-family: 'Noto Sans TC', 'PingFang TC', '微軟正黑體', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ==================== 佈局區塊 ==================== */
+        header {
+            height: 60px;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background-color: #fff;
+            border-bottom: 1px solid #EAE8E3;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.02);
+        }
+        
+        #currentTitle {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            letter-spacing: 1px;
+        }
+
+        main {
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            padding: 20px;
+        }
+
+        nav {
+            height: 70px;
+            flex-shrink: 0;
+            background-color: var(--nav-bg);
+            border-top: 1px solid #EAE8E3;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+
+        .nav-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: none;
+            border: none;
+            color: var(--primary-color);
+            font-family: 'Noto Sans TC', sans-serif;
+            font-size: 0.75rem;
+            font-weight: 700;
+            cursor: pointer;
+            width: 75px;
+            height: 100%;
+            transition: color 0.2s;
+            gap: 5px;
+        }
+
+        .nav-btn:hover, .nav-btn:active {
+            color: var(--accent-color);
+        }
+
+        .nav-btn svg {
+            stroke: currentColor;
+            transition: stroke 0.2s;
+        }
+
+        /* ==================== 轉盤與指針 ==================== */
+        .wheel-wrapper {
+            position: relative;
+            width: 90vw;
+            max-width: 350px;
+            aspect-ratio: 1 / 1;
+        }
+
+        .pointer {
+            position: absolute;
+            top: -15px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 15px solid transparent;
+            border-right: 15px solid transparent;
+            border-top: 30px solid var(--text-main);
+            z-index: 10;
+            filter: drop-shadow(0 4px 4px rgba(0,0,0,0.2));
+        }
+
+        #wheelCanvas {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background-color: #fff;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+            cursor: pointer;
+        }
+
+        /* ==================== 彈出式視窗 (Modal) ==================== */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(74, 74, 74, 0.4);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            padding: 20px;
+        }
+
+        .modal-overlay.active { display: flex; }
+
+        .modal-content {
+            background-color: var(--bg-color);
+            width: 100%;
+            max-width: 360px;
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            max-height: 85vh;
+        }
+
+        .modal-header {
+            font-size: 1.1rem;
+            color: var(--primary-color);
+            font-weight: 700;
+            margin-bottom: 15px;
+            text-align: center;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .close-icon { 
+            cursor: pointer; 
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+        }
+
+        .project-selector-group {
+            background: #fff;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            border: 1px solid #EAE8E3;
+        }
+        .project-select {
+            width: 100%;
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid var(--accent-color);
+            color: var(--text-main);
+            font-family: 'Noto Sans TC', sans-serif;
+            font-size: 0.95rem;
+            font-weight: 700;
+            outline: none;
+            background-color: #fff;
+        }
+
+        .add-item-group { display: flex; gap: 10px; margin-bottom: 15px; }
+        .add-item-group input {
+            flex-grow: 1; padding: 10px; border: 1px solid var(--accent-color);
+            border-radius: 8px; font-size: 1rem; outline: none; background: #fff;
+            font-family: 'Noto Sans TC', sans-serif;
+            font-weight: 500;
+        }
+        .btn-primary {
+            background-color: var(--primary-color); color: #FFF;
+            border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer;
+            font-weight: 700; width: 100%; font-family: 'Noto Sans TC', sans-serif;
+        }
+        .btn-outline {
+            background-color: transparent; color: var(--primary-color);
+            border: 2px solid var(--primary-color); padding: 10px 16px; border-radius: 8px; 
+            cursor: pointer; font-weight: 700; width: 100%; margin-top: 10px;
+            font-family: 'Noto Sans TC', sans-serif;
+        }
+        .btn-danger-outline {
+            background-color: transparent; color: var(--danger-color);
+            border: 1px dashed var(--danger-color); padding: 6px 12px; border-radius: 6px;
+            cursor: pointer; font-size: 0.8rem; margin-top: 8px; width: 100%;
+            font-family: 'Noto Sans TC', sans-serif;
+            font-weight: 700;
+        }
+
+        .item-list {
+            flex-grow: 1;
+            overflow-y: auto;
+            margin-bottom: 15px;
+            padding-right: 5px;
+        }
+
+        .item-row {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 10px 0; border-bottom: 1px solid #EAE8E3;
+            font-weight: 500;
+        }
+
+        .icon-btn { background: none; border: none; cursor: pointer; display: flex; align-items: center; }
+        .icon-btn.delete { color: var(--danger-color); }
+        
+        #fileInput { display: none; }
+        .modal-content p { color: #666; font-size: 0.85rem; line-height: 1.4; text-align: center;}
+
+    </style>
+</head>
+<body>
+
+    <header>
+        <span style="font-size: 0.75rem; color: #999; margin-bottom: 2px; font-weight: 500;">當前主題</span>
+        <div id="currentTitle">載入中...</div>
+    </header>
+
+    <main>
+        <div class="wheel-wrapper">
+            <div class="pointer"></div>
+            <canvas id="wheelCanvas" width="800" height="800"></canvas>
+        </div>
+    </main>
+
+    <nav>
+        <button class="nav-btn" onclick="startSpin()">
+            <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polygon points="10 8 16 12 10 16 10 8" fill="currentColor"></polygon></svg>
+            抽籤
+        </button>
+        <button class="nav-btn" onclick="openModal('editModal')">
+            <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+            主題清單
+        </button>
+        <button class="nav-btn" onclick="openModal('historyModal')">
+            <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><polyline points="3 3 3 8 8 8"></polyline><line x1="12" y1="7" x2="12" y2="12"></line><polyline points="12 12 16 14"></polyline></svg>
+            紀錄
+        </button>
+        <button class="nav-btn" onclick="openModal('backupModal')">
+            <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+            備份/還原
+        </button>
+    </nav>
+
+    <div id="resultModal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 280px; text-align: center; padding: 25px 20px;">
+            <div style="font-size: 2.5rem; margin-bottom: 10px;">🎉</div>
+            <div id="resultText" style="font-size: 1.3rem; font-weight: 900; color: var(--primary-color); margin-bottom: 20px; line-height: 1.4;">
+                抽中了：
+            </div>
+            <button class="btn-primary" onclick="closeModal('resultModal')">好耶</button>
+        </div>
+    </div>
+
+    <div id="editModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                切換與編輯主題
+                <span class="close-icon" onclick="closeModal('editModal')">
+                    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </span>
+            </div>
+            
+            <div class="project-selector-group">
+                <label style="font-size: 0.8rem; color: #888; display:block; margin-bottom: 5px; font-weight: 700;">選擇主題：</label>
+                <select id="projectSelect" class="project-select" onchange="switchProject(this.value)"></select>
+                <button class="btn-outline" style="padding: 6px; font-size: 0.85rem; margin-top: 8px;" onclick="createNewProject()">+ 建立全新主題</button>
+                <button id="deleteProjBtn" class="btn-danger-outline" onclick="deleteCurrentProject()">刪除此主題</button>
+            </div>
+
+            <div style="border-top: 1px solid #DDD; margin: 5px 0 15px 0;"></div>
+
+            <div class="add-item-group">
+                <input type="text" id="newItemInput" placeholder="輸入新項目..." onkeypress="handleEnter(event)">
+                <button class="btn-primary" style="width: auto;" onclick="addItem()">新增</button>
+            </div>
+            <div id="itemList" class="item-list"></div>
+            <button class="btn-primary" onclick="closeModal('editModal')">完成並儲存</button>
+        </div>
+    </div>
+
+    <div id="historyModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                抽籤紀錄
+                <span class="close-icon" onclick="closeModal('historyModal')">
+                    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </span>
+            </div>
+            <div id="historyList" class="item-list"></div>
+            <button class="btn-outline" onclick="clearHistory()">清空紀錄</button>
+        </div>
+    </div>
+
+    <div id="backupModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                資料備份/還原
+                <span class="close-icon" onclick="closeModal('backupModal')">
+                    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </span>
+            </div>
+            <p style="margin-bottom: 20px; font-weight: 500;">將目前的「所有轉盤主題」儲存為檔案，或從先前存檔的檔案進行還原。</p>
+            <button class="btn-primary" onclick="exportData()">匯出完整備份 (.json)</button>
+            <button class="btn-outline" onclick="document.getElementById('fileInput').click()">從檔案還原所有轉盤</button>
+            <input type="file" id="fileInput" onchange="importData(event)">
+        </div>
+    </div>
+
+    <script>
+        const defaultAppData = {
+            current: "晚餐吃什麼",
+            lists: {
+                "晚餐吃什麼": ["便當", "火鍋", "義大利麵", "滷肉飯", "牛肉麵", "壽司"],
+                "去哪裡玩": ["台北", "台中", "台南", "高雄", "花蓮", "宜蘭"]
+            }
+        };
+
+        let appData = JSON.parse(localStorage.getItem('multiWheelAppData')) || defaultAppData;
+        let historyData = JSON.parse(localStorage.getItem('wheelHistory')) || [];
+        
+        const colors = ['#FF597B', '#FF8E53', '#FFD166', '#06D6A0', '#00BBF9', '#9B5DE5'];
+
+        // --- Canvas 轉盤控制 ---
+        const canvas = document.getElementById('wheelCanvas');
+        const ctx = canvas.getContext('2d');
+        let currentAngle = 0, spinVelocity = 0, isSpinning = false;
+        const centerX = canvas.width / 2, centerY = canvas.height / 2, radius = centerX - 10;
+
+        function drawWheel() {
+            const items = appData.lists[appData.current] || [];
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            if (items.length === 0) return;
+            
+            const sliceAngle = (2 * Math.PI) / items.length;
+
+            for (let i = 0; i < items.length; i++) {
+                const startAngle = currentAngle + i * sliceAngle;
+                const endAngle = startAngle + sliceAngle;
+
+                ctx.beginPath();
+                ctx.moveTo(centerX, centerY);
+                ctx.arc(centerX, centerY, radius, startAngle, endAngle);
+                ctx.fillStyle = colors[i % colors.length];
+                ctx.fill();
+                
+                ctx.lineWidth = 4; 
+                ctx.strokeStyle = '#FFFFFF';
+                ctx.stroke();
+
+                ctx.save();
+                ctx.translate(centerX, centerY);
+                ctx.rotate(startAngle + sliceAngle / 2);
+                ctx.textAlign = "right";
+                ctx.textBaseline = "middle";
+                ctx.fillStyle = "#FFFFFF";
+                ctx.font = "900 42px 'Noto Sans TC', sans-serif";
+                
+                ctx.shadowColor = "rgba(0, 0, 0, 0.12)";
+                ctx.shadowBlur = 4;
+                ctx.shadowOffsetX = 1;
+                ctx.shadowOffsetY = 1;
+
+                ctx.fillText(items[i], radius - 50, 0); 
+                ctx.restore();
+            }
+
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 25, 0, 2 * Math.PI);
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fill();
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#EAE8E3';
+            ctx.stroke();
+        }
+
+        // --- 旋轉物理動畫 ---
+        function animate() {
+            currentAngle += spinVelocity;
+            spinVelocity *= 0.985;
+            drawWheel();
+
+            if (spinVelocity < 0.002) {
+                isSpinning = false;
+                spinVelocity = 0;
+                calculateWinner();
+                return;
+            }
+            requestAnimationFrame(animate);
+        }
+
+        function startSpin() {
+            const items = appData.lists[appData.current] || [];
+            if (isSpinning || items.length < 2) return;
+            isSpinning = true;
+            spinVelocity = Math.random() * 0.3 + 0.4; 
+            animate();
+        }
+
+        function calculateWinner() {
+            const items = appData.lists[appData.current];
+            const sliceAngle = (2 * Math.PI) / items.length;
+            const degrees = (currentAngle % (2 * Math.PI)) * (180 / Math.PI);
+            const pointerAngle = 270 - degrees;
+            const normalizedAngle = (pointerAngle + 360) % 360;
+            const winnerIndex = Math.floor(normalizedAngle / (sliceAngle * (180 / Math.PI)));
+            
+            const winner = items[winnerIndex];
+            
+            const timeString = new Date().toLocaleTimeString('zh-TW', {hour: '2-digit', minute:'2-digit'});
+            historyData.unshift({ theme: appData.current, time: timeString, result: winner });
+            if(historyData.length > 50) historyData.pop();
+            localStorage.setItem('wheelHistory', JSON.stringify(historyData));
+
+            setTimeout(() => { 
+                document.getElementById('resultText').innerHTML = `抽中了：<br><span style="color:#FF597B; font-size:1.6rem; font-weight:900;">${winner}</span>`;
+                openModal('resultModal');
+            }, 200);
+        }
+
+        // --- 主題管理邏輯 ---
+        function updateHeaderTitle() {
+            document.getElementById('currentTitle').innerText = appData.current;
+        }
+
+        function saveToStorage() {
+            localStorage.setItem('multiWheelAppData', JSON.stringify(appData));
+        }
+
+        function switchProject(projectName) {
+            if(!appData.lists[projectName]) return;
+            appData.current = projectName;
+            saveToStorage();
+            updateHeaderTitle();
+            drawWheel();
+            renderEditList();
+        }
+
+        function createNewProject() {
+            const name = prompt("請輸入新主題的名稱：");
+            if (!name || name.trim() === "") return;
+            const cleanName = name.trim();
+            
+            if (appData.lists[cleanName]) {
+                alert("這個主題名稱已經存在囉！");
+                return;
+            }
+
+            appData.lists[cleanName] = ["選項 A", "選項 B"];
+            appData.current = cleanName;
+            saveToStorage();
+            updateHeaderTitle();
+            populateProjectSelect();
+            renderEditList();
+            drawWheel();
+        }
+
+        function deleteCurrentProject() {
+            const keys = Object.keys(appData.lists);
+            if (keys.length <= 1) {
+                alert("不能刪除最後一個主題喔！");
+                return;
+            }
+            if (confirm(`確定要永久刪除【${appData.current}】這個主題嗎？`)) {
+                delete appData.lists[appData.current];
+                appData.current = Object.keys(appData.lists)[0];
+                saveToStorage();
+                updateHeaderTitle();
+                populateProjectSelect();
+                renderEditList();
+                drawWheel();
+            }
+        }
+
+        function populateProjectSelect() {
+            const select = document.getElementById('projectSelect');
+            select.innerHTML = Object.keys(appData.lists).map(key => 
+                `<option value="${key}" ${key === appData.current ? 'selected' : ''}>${key}</option>`
+            ).join('');
+        }
+
+        // --- 模態框通用控制 ---
+        function openModal(id) {
+            document.getElementById(id).classList.add('active');
+            if(id === 'editModal') {
+                populateProjectSelect();
+                renderEditList();
+            }
+            if(id === 'historyModal') renderHistory();
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('active');
+            if(id === 'editModal') {
+                saveToStorage();
+                drawWheel();
+            }
+        }
+
+        function renderEditList() {
+            const list = document.getElementById('itemList');
+            const items = appData.lists[appData.current] || [];
+            list.innerHTML = items.map((item, index) => `
+                <div class="item-row">
+                    <span>${item}</span>
+                    <button class="icon-btn delete" onclick="deleteItem(${index})">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        // 綁定抽籤按鈕
+        document.querySelectorAll('.nav-btn')[0].removeAttribute('onclick');
+        document.querySelectorAll('.nav-btn')[0].addEventListener('click', startSpin);
+
+        function addItem() {
+            const input = document.getElementById('newItemInput');
+            const val = input.value.trim();
+            if (val) {
+                appData.lists[appData.current].push(val);
+                input.value = '';
+                renderEditList();
+            }
+        }
+
+        function handleEnter(e) { if(e.key === 'Enter') addItem(); }
+
+        function deleteItem(index) {
+            const items = appData.lists[appData.current];
+            if(items.length <= 2) { alert("轉盤至少需要兩個項目喔！"); return; }
+            items.splice(index, 1);
+            renderEditList();
+        }
+
+        // --- 歷史與備份 ---
+        function renderHistory() {
+            const list = document.getElementById('historyList');
+            if(historyData.length === 0) {
+                list.innerHTML = '<div style="text-align:center; padding: 20px; color: #999;">尚無紀錄</div>';
+                return;
+            }
+            list.innerHTML = historyData.map(h => `
+                <div class="item-row">
+                    <div>
+                        <div style="font-size:0.75rem; color:#999;">${h.theme} (${h.time})</div>
+                        <div style="font-weight: 700; color: var(--primary-color); margin-top:2px;">${h.result}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function clearHistory() {
+            if(confirm('確定要清空所有抽籤紀錄嗎？')) {
+                historyData = [];
+                localStorage.removeItem('wheelHistory');
+                renderHistory();
+            }
+        }
+
+        function exportData() {
+            const dataStr = JSON.stringify(appData);
+            const blob = new Blob([dataStr], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `轉盤完整備份_${new Date().toISOString().slice(0,10)}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function importData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            // 💡 核心修復：在前端 JavaScript 進行防錯檢查，確保用戶上傳的是正確的 .json 格式檔案
+            if (!file.name.toLowerCase().endsWith('.json')) {
+                alert("❌ 請選擇副檔名為 .json 的備份檔案喔！");
+                event.target.value = ''; // 清空上傳，防止錯誤掛載
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const imported = JSON.parse(e.target.result);
+                    if(imported.current && imported.lists) {
+                        appData = imported;
+                        saveToStorage();
+                        updateHeaderTitle();
+                        drawWheel();
+                        closeModal('backupModal');
+                        alert("✅ 所有主題還原成功！");
+                    } else {
+                        alert("❌ 檔案內容格式不正確。");
+                    }
+                } catch (err) {
+                    alert("❌ 讀取檔案失敗。");
+                }
+                event.target.value = '';
+            };
+            reader.readAsText(file);
+        }
+
+        // 初始化
+        updateHeaderTitle();
+        drawWheel();
+        canvas.addEventListener('click', startSpin);
+
+    </script>
+</body>
+</html>
