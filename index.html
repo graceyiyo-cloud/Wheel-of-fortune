@@ -393,12 +393,23 @@
             current: "晚餐吃什麼",
             lists: {
                 "晚餐吃什麼": ["便當", "火鍋", "義大利麵", "滷肉飯", "牛肉麵", "壽司"],
-                "去哪裡玩": ["台北", "台中", "台南", "高雄", "花蓮", "宜蘭"]
+                "去哪裡玩": ["台北", "台中", "台南", "高雄", "花蓮", "宜蘭"],
+                "電視看什麼": ["瑪莉歐", "拉不拉多", "多啦A夢", "湯姆貓", "大砲"]
             }
         };
 
         let appData = JSON.parse(localStorage.getItem('multiWheelAppData')) || defaultAppData;
         let historyData = JSON.parse(localStorage.getItem('wheelHistory')) || [];
+
+        // 將新主題加入已使用過的裝置，保留原有清單與目前選擇。
+        const tvListMigrationKey = 'wheelTvListAdded20261111';
+        if (!localStorage.getItem(tvListMigrationKey)) {
+            if (!Object.prototype.hasOwnProperty.call(appData.lists, '電視看什麼')) {
+                appData.lists['電視看什麼'] = defaultAppData.lists['電視看什麼'];
+                localStorage.setItem('multiWheelAppData', JSON.stringify(appData));
+            }
+            localStorage.setItem(tvListMigrationKey, '1');
+        }
         
         // 資料結構自動升級防護機制
         for (let listName in appData.lists) {
